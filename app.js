@@ -18,12 +18,12 @@ import { SEED_TASKS } from "./seed.js";
 // ─── Firebase config ─────────────────────────────────────────────
 // Replace these with the values from your Firebase console (see SETUP.md).
 const firebaseConfig = {
-  apiKey: "REPLACE_ME",
-  authDomain: "REPLACE_ME",
-  projectId: "REPLACE_ME",
-  storageBucket: "REPLACE_ME",
-  messagingSenderId: "REPLACE_ME",
-  appId: "REPLACE_ME",
+  apiKey: "AIzaSyCk2rQwoQIz_CSetxH_x5yXwX9ge-ofKtE",
+  authDomain: "pillows-86314.firebaseapp.com",
+  projectId: "pillows-86314",
+  storageBucket: "pillows-86314.firebasestorage.app",
+  messagingSenderId: "530067542567",
+  appId: "1:530067542567:web:712c9a836a0949d7e8f402",
 };
 
 const app = initializeApp(firebaseConfig);
