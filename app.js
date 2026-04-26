@@ -56,8 +56,9 @@ const PHASES = [
 let allShows         = [];
 let activeShowId     = null;
 let activeShowTasks  = [];
-let tasksUnsub       = null;
 let pendingAssign    = null;
+const allShowsTasks  = new Map(); // showId -> tasks[]
+const showTaskSubs   = new Map(); // showId -> unsub fn
 
 // ─── DOM refs ────────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
@@ -94,6 +95,13 @@ const addForm        = $("add-form");
 const earningsSummary = $("earnings-summary");
 const peopleList      = $("people-list");
 
+const showEarningsSheet    = $("show-earnings-sheet");
+const showEarningsTitle    = $("show-earnings-title");
+const showEarningsSubtitle = $("show-earnings-subtitle");
+const showEarningsList     = $("show-earnings-list");
+const showEarningsTotal    = $("show-earnings-total");
+const showEarningsClose    = $("show-earnings-close");
+
 // ─── Init ────────────────────────────────────────────────────────
 setupNav();
 setupSheets();
@@ -105,8 +113,11 @@ onSnapshot(
   query(showsRef, orderBy("startDate", "asc")),
   (snap) => {
     allShows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    syncShowTaskSubs();
     renderShows();
     renderActiveHeader();
+    renderEarnings();
+    refreshShowEarningsSheetIfOpen();
   },
   (err) => {
     status.textContent = `Error loading shows: ${err.message}`;
@@ -121,42 +132,59 @@ onSnapshot(
     const newId = snap.exists() ? snap.data().showId : null;
     if (newId !== activeShowId) {
       activeShowId = newId;
-      subscribeToActiveTasks();
+      activeShowTasks = activeShowId ? (allShowsTasks.get(activeShowId) || []) : [];
       renderActiveHeader();
+      renderTasks();
       renderShows();
+      renderEarnings();
+      updateStatus();
     }
   },
   (err) => console.error("active show err:", err)
 );
 
-// ─── Active show subscription ────────────────────────────────────
-function subscribeToActiveTasks() {
-  if (tasksUnsub) tasksUnsub();
-  tasksUnsub = null;
+// ─── Per-show task subscriptions ─────────────────────────────────
+function syncShowTaskSubs() {
+  const liveIds = new Set(allShows.map((s) => s.id));
+  // Tear down subs for shows that disappeared
+  for (const [id, unsub] of showTaskSubs) {
+    if (!liveIds.has(id)) {
+      unsub();
+      showTaskSubs.delete(id);
+      allShowsTasks.delete(id);
+    }
+  }
+  // Subscribe to any new shows
+  for (const s of allShows) {
+    if (showTaskSubs.has(s.id)) continue;
+    const tasksRef = collection(db, "shows", s.id, "tasks");
+    const unsub = onSnapshot(
+      query(tasksRef, orderBy("order", "asc")),
+      (snap) => {
+        const tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        allShowsTasks.set(s.id, tasks);
+        if (s.id === activeShowId) {
+          activeShowTasks = tasks;
+          updateStatus();
+          renderTasks();
+        }
+        renderShows();
+        renderEarnings();
+        refreshShowEarningsSheetIfOpen();
+      },
+      (err) => console.error(`tasks err for ${s.id}:`, err)
+    );
+    showTaskSubs.set(s.id, unsub);
+  }
+}
 
+function updateStatus() {
   if (!activeShowId) {
-    activeShowTasks = [];
-    renderTasks();
-    renderEarnings();
     status.textContent = "No active show";
     return;
   }
-
-  const tasksRef = collection(db, "shows", activeShowId, "tasks");
-  tasksUnsub = onSnapshot(
-    query(tasksRef, orderBy("order", "asc")),
-    (snap) => {
-      activeShowTasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      status.textContent = `Live · ${activeShowTasks.length} task${activeShowTasks.length === 1 ? "" : "s"}`;
-      renderTasks();
-      renderEarnings();
-      renderShows();
-    },
-    (err) => {
-      status.textContent = `Error: ${err.message}`;
-      console.error(err);
-    }
-  );
+  const n = activeShowTasks.length;
+  status.textContent = `Live · ${n} task${n === 1 ? "" : "s"}`;
 }
 
 // ─── Header on Tasks screen ──────────────────────────────────────
@@ -165,13 +193,11 @@ function renderActiveHeader() {
   if (!show) {
     activeShowName.textContent = "No show selected";
     activeShowDate.textContent = "Create one in the Shows tab";
-    earningsShowName.textContent = "No active show";
     addTaskBtn.style.display = "none";
     return;
   }
   activeShowName.textContent = show.name;
   activeShowDate.textContent = formatDateRange(show.startDate, show.endDate);
-  earningsShowName.textContent = show.name;
   addTaskBtn.style.display = "";
 }
 
@@ -355,44 +381,75 @@ function closeAssignSheet() {
   pendingAssign = null;
 }
 
-// ─── Earnings (scoped to active show) ────────────────────────────
-function renderEarnings() {
+// ─── Earnings (cross-show, with paid/pending) ────────────────────
+function computeShowTotals(showId) {
+  const tasks = allShowsTasks.get(showId) || [];
   const totals = {};
-  PEOPLE.forEach((p) => totals[p] = { earned: 0, tasks: 0 });
-
-  let pool = 0, paidOut = 0;
-  for (const t of activeShowTasks) {
-    pool += Number(t.pay) || 0;
+  PEOPLE.forEach((p) => totals[p] = 0);
+  for (const t of tasks) {
     if (t.done && t.assignments) {
       for (const [name, pct] of Object.entries(t.assignments)) {
-        if (totals[name]) {
-          totals[name].earned += (Number(t.pay) || 0) * (Number(pct) / 100);
-          totals[name].tasks  += 1;
+        if (totals[name] !== undefined) {
+          totals[name] += (Number(t.pay) || 0) * (Number(pct) / 100);
         }
       }
-      paidOut += Number(t.pay) || 0;
+    }
+  }
+  return totals;
+}
+
+function renderEarnings() {
+  const perPerson = {};
+  PEOPLE.forEach((p) => perPerson[p] = { earned: 0, paid: 0, pending: 0, shows: new Set() });
+
+  for (const show of allShows) {
+    const showTotals = computeShowTotals(show.id);
+    const paidMap = show.paid || {};
+    for (const name of PEOPLE) {
+      const amt = showTotals[name];
+      if (amt > 0) {
+        perPerson[name].earned += amt;
+        perPerson[name].shows.add(show.id);
+        if (paidMap[name]) perPerson[name].paid += amt;
+        else perPerson[name].pending += amt;
+      }
     }
   }
 
+  const grandEarned  = Object.values(perPerson).reduce((s, t) => s + t.earned, 0);
+  const grandPaid    = Object.values(perPerson).reduce((s, t) => s + t.paid, 0);
+  const grandPending = Object.values(perPerson).reduce((s, t) => s + t.pending, 0);
+
+  earningsShowName.textContent = `Across ${allShows.length} show${allShows.length === 1 ? "" : "s"}`;
+
   earningsSummary.innerHTML = `
-    <p class="label">Paid out so far</p>
-    <p class="amount">$${paidOut.toFixed(0)}</p>
-    <p class="sub">of $${pool.toFixed(0)} total · $${(pool - paidOut).toFixed(0)} remaining</p>
+    <p class="label">Total earned</p>
+    <p class="amount">$${grandEarned.toFixed(0)}</p>
+    <p class="sub">$${grandPaid.toFixed(0)} paid · $${grandPending.toFixed(0)} pending</p>
   `;
 
-  const sorted = PEOPLE.slice().sort((a, b) => totals[b].earned - totals[a].earned);
+  const sorted = PEOPLE.slice().sort((a, b) => perPerson[b].earned - perPerson[a].earned);
   peopleList.innerHTML = sorted.map((name) => {
-    const { earned, tasks } = totals[name];
+    const t = perPerson[name];
+    const showCount = t.shows.size;
+    const tail = t.earned === 0
+      ? `<div class="person-paid-tag" style="color: var(--text-muted);">No earnings</div>`
+      : t.pending > 0
+        ? `<div class="person-pending">$${t.pending.toFixed(2)} owed</div>`
+        : `<div class="person-paid-tag">All paid ✓</div>`;
     return `
       <div class="person-card">
         <div class="person-name">
           <span class="avatar" style="background: ${PERSON_COLORS[name]}">${name[0]}</span>
           <div>
             ${name}
-            <span class="person-tasks">${tasks} task${tasks === 1 ? "" : "s"}</span>
+            <span class="person-tasks">${showCount} show${showCount === 1 ? "" : "s"}</span>
           </div>
         </div>
-        <div class="person-amount">$${earned.toFixed(2)}</div>
+        <div class="person-earnings">
+          <div class="person-amount">$${t.earned.toFixed(2)}</div>
+          ${tail}
+        </div>
       </div>
     `;
   }).join("");
@@ -441,19 +498,43 @@ function renderShowCard(s, statusClass) {
   const card = document.createElement("div");
   card.className = "show-card" + (s.id === activeShowId ? " active" : "");
 
-  // For the active show, show progress + payout from loaded tasks
+  const tasks = allShowsTasks.get(s.id) || [];
   let metaHtml = "";
-  if (s.id === activeShowId && activeShowTasks.length) {
-    const done = activeShowTasks.filter((t) => t.done).length;
-    const pool = activeShowTasks.reduce((sum, t) => sum + (Number(t.pay) || 0), 0);
-    const paid = activeShowTasks
+  if (tasks.length) {
+    const done = tasks.filter((t) => t.done).length;
+    const pool = tasks.reduce((sum, t) => sum + (Number(t.pay) || 0), 0);
+    const paid = tasks
       .filter((t) => t.done)
       .reduce((sum, t) => sum + (Number(t.pay) || 0), 0);
     metaHtml = `
       <div class="show-card-meta">
-        <span class="progress">${done}/${activeShowTasks.length} tasks</span>
+        <span class="progress">${done}/${tasks.length} tasks</span>
         <span class="payout">$${paid} / $${pool}</span>
       </div>
+    `;
+  }
+
+  // Earnings / paid status pill
+  const showTotals = computeShowTotals(s.id);
+  const paidMap = s.paid || {};
+  let earnerCount = 0, pendingTotal = 0, paidTotal = 0;
+  for (const name of PEOPLE) {
+    if (showTotals[name] > 0) {
+      earnerCount++;
+      if (paidMap[name]) paidTotal += showTotals[name];
+      else pendingTotal += showTotals[name];
+    }
+  }
+  let earningsBtnHtml = "";
+  if (earnerCount > 0) {
+    const pill = pendingTotal > 0
+      ? `<span class="pending-pill">$${pendingTotal.toFixed(0)} owed</span>`
+      : `<span class="all-paid-pill">All paid ✓</span>`;
+    earningsBtnHtml = `
+      <button class="show-earnings-btn" type="button">
+        <span>Earnings & pay status</span>
+        ${pill}
+      </button>
     `;
   }
 
@@ -466,11 +547,11 @@ function renderShowCard(s, statusClass) {
       <span class="show-status ${statusClass}">${statusClass}</span>
     </div>
     ${metaHtml}
+    ${earningsBtnHtml}
   `;
 
   card.addEventListener("click", async () => {
     if (s.id === activeShowId) {
-      // Already active — switch to Tasks tab
       switchTab("tasks");
     } else {
       await setDoc(activeRef, { showId: s.id });
@@ -478,8 +559,88 @@ function renderShowCard(s, statusClass) {
     }
   });
 
+  const earningsBtn = card.querySelector(".show-earnings-btn");
+  if (earningsBtn) {
+    earningsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openShowEarningsSheet(s.id);
+    });
+  }
+
   return card;
 }
+
+// ─── Show earnings / paid sheet ──────────────────────────────────
+function openShowEarningsSheet(showId) {
+  const show = allShows.find((s) => s.id === showId);
+  if (!show) return;
+  showEarningsSheet.dataset.showId = showId;
+  renderShowEarningsSheet(showId);
+  showEarningsSheet.classList.remove("hidden");
+}
+
+function renderShowEarningsSheet(showId) {
+  const show = allShows.find((s) => s.id === showId);
+  if (!show) return;
+  const totals = computeShowTotals(showId);
+  const paidMap = show.paid || {};
+
+  showEarningsTitle.textContent = show.name;
+
+  const earners = PEOPLE.filter((p) => totals[p] > 0);
+  if (earners.length === 0) {
+    showEarningsSubtitle.textContent = "No completed tasks yet for this show.";
+    showEarningsList.innerHTML = `<li class="empty-row">No earnings to track.</li>`;
+    showEarningsTotal.textContent = "";
+    return;
+  }
+
+  showEarningsSubtitle.textContent = "Tap a person to mark them paid.";
+
+  showEarningsList.innerHTML = earners.map((name) => {
+    const isPaid = !!paidMap[name];
+    return `
+      <li class="paid-row ${isPaid ? "paid" : ""}" data-name="${name}">
+        <span class="avatar" style="background: ${PERSON_COLORS[name]}">${name[0]}</span>
+        <div class="paid-row-body">
+          <p class="paid-row-name">${name}</p>
+          <p class="paid-row-amt">$${totals[name].toFixed(2)}</p>
+        </div>
+        <input type="checkbox" class="paid-check" ${isPaid ? "checked" : ""} />
+      </li>
+    `;
+  }).join("");
+
+  const totalEarned  = earners.reduce((s, n) => s + totals[n], 0);
+  const totalPaid    = earners.reduce((s, n) => s + (paidMap[n] ? totals[n] : 0), 0);
+  const totalPending = totalEarned - totalPaid;
+  showEarningsTotal.textContent = `Paid $${totalPaid.toFixed(2)} · Pending $${totalPending.toFixed(2)}`;
+  showEarningsTotal.className = "sheet-total " + (totalPending === 0 ? "ok" : "");
+
+  showEarningsList.querySelectorAll(".paid-row").forEach((row) => {
+    row.addEventListener("click", async () => {
+      const name = row.dataset.name;
+      const currentShow = allShows.find((s) => s.id === showId);
+      const currentPaid = { ...(currentShow?.paid || {}) };
+      if (currentPaid[name]) delete currentPaid[name];
+      else currentPaid[name] = true;
+      await updateDoc(doc(db, "shows", showId), { paid: currentPaid });
+    });
+  });
+}
+
+function refreshShowEarningsSheetIfOpen() {
+  if (showEarningsSheet.classList.contains("hidden")) return;
+  const showId = showEarningsSheet.dataset.showId;
+  if (showId) renderShowEarningsSheet(showId);
+}
+
+showEarningsClose.addEventListener("click", () => {
+  showEarningsSheet.classList.add("hidden");
+});
+showEarningsSheet.addEventListener("click", (e) => {
+  if (e.target === showEarningsSheet) showEarningsSheet.classList.add("hidden");
+});
 
 // ─── New show creation ──────────────────────────────────────────
 function setupNewShow() {

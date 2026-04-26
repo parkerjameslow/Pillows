@@ -326,6 +326,117 @@ button {
   margin-top: 0.15rem;
 }
 
+.person-earnings {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  align-items: flex-end;
+}
+.person-pending {
+  font-size: 0.75rem;
+  color: var(--coral);
+  font-weight: 600;
+}
+.person-paid-tag {
+  font-size: 0.72rem;
+  color: var(--green);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* Per-show paid list (in show earnings sheet) */
+.people-paid-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.paid-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.paid-row.paid {
+  border-color: var(--green);
+  background: linear-gradient(90deg, rgba(61, 214, 140, 0.1), transparent 70%);
+}
+.paid-row-body {
+  flex: 1;
+  min-width: 0;
+}
+.paid-row-name {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.paid-row-amt {
+  margin: 0.1rem 0 0;
+  color: var(--green);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.paid-check {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--green);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.empty-row {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 1.25rem 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* Earnings button on a show card */
+.show-earnings-btn {
+  margin-top: 0.4rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+}
+.show-earnings-btn:active { background: var(--card-2); }
+.show-earnings-btn .pending-pill {
+  background: rgba(244, 107, 107, 0.15);
+  color: var(--coral);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+.show-earnings-btn .all-paid-pill {
+  background: rgba(61, 214, 140, 0.15);
+  color: var(--green);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+
 /* ── Bottom nav ── */
 .bottom-nav {
   position: fixed;
