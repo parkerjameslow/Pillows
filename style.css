@@ -541,6 +541,143 @@ button {
   margin-top: 0.5rem;
 }
 
+/* ── Shows ── */
+.show-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: border-color 0.15s ease, transform 0.08s ease;
+  cursor: pointer;
+}
+.show-card:active { transform: scale(0.99); }
+.show-card.active {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(123, 107, 255, 0.10), transparent 60%);
+}
+
+.show-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.show-card-name {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.show-card-dates {
+  margin: 0.1rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.show-status {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.show-status.active   { background: rgba(123, 107, 255, 0.18); color: var(--accent); }
+.show-status.upcoming { background: rgba(91, 155, 255, 0.15);  color: var(--accent-2); }
+.show-status.past     { background: rgba(122, 127, 149, 0.18); color: var(--text-muted); }
+
+.show-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.show-card-meta .progress { color: var(--text); font-weight: 600; }
+.show-card-meta .payout   { color: var(--green); font-weight: 600; margin-left: auto; }
+
+.show-card-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.show-card-actions button {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.show-card-actions button.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Empty states ── */
+.empty-state {
+  background: var(--card);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  margin-top: 1rem;
+}
+.empty-state.hidden { display: none; }
+.empty-state h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.15rem;
+  color: var(--text);
+}
+.empty-state p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ── Checkbox row in form ── */
+.checkbox-label {
+  grid-column: span 2;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.6rem !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  font-size: 0.9rem !important;
+  color: var(--text) !important;
+  padding: 0.6rem 0.2rem;
+}
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+/* ── Danger button ── */
+.btn-danger {
+  background: transparent;
+  color: var(--coral);
+  border: 1px solid rgba(244, 107, 107, 0.4);
+  border-radius: 12px;
+  padding: 0.7rem 1.1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-right: auto;
+}
+.btn-danger.hidden { display: none; }
+.btn-danger:active { background: rgba(244, 107, 107, 0.1); }
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }

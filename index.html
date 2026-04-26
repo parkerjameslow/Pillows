@@ -13,33 +13,52 @@
     <section class="screen" data-screen="tasks">
       <header class="page-header">
         <div>
-          <p class="page-date" id="today-date"></p>
-          <h1 class="page-title">Pillow Show</h1>
+          <p class="page-date" id="active-show-date">No show selected</p>
+          <h1 class="page-title" id="active-show-name">Pillow Show</h1>
         </div>
         <button class="icon-btn" id="add-task-btn" aria-label="Add task">＋</button>
       </header>
 
-      <div class="stats-grid" id="phase-stats">
-        <!-- filled in by JS -->
-      </div>
+      <div class="stats-grid" id="phase-stats"></div>
 
       <div id="tasks-container" class="sections"></div>
 
+      <div id="no-show-empty" class="empty-state hidden">
+        <h2>No active show</h2>
+        <p>Create a show in the <strong>Shows</strong> tab to start tracking tasks.</p>
+      </div>
+
       <p id="connection-status" class="status">Connecting…</p>
+    </section>
+
+    <!-- SHOWS SCREEN -->
+    <section class="screen hidden" data-screen="shows">
+      <header class="page-header">
+        <div>
+          <p class="page-date">Your timeline</p>
+          <h1 class="page-title">Shows</h1>
+        </div>
+        <button class="icon-btn" id="add-show-btn" aria-label="New show">＋</button>
+      </header>
+
+      <div id="shows-container" class="sections"></div>
+
+      <div id="no-shows-empty" class="empty-state hidden">
+        <h2>No shows yet</h2>
+        <p>Tap <strong>＋</strong> above to create your first show.</p>
+      </div>
     </section>
 
     <!-- EARNINGS SCREEN -->
     <section class="screen hidden" data-screen="earnings">
       <header class="page-header">
         <div>
-          <p class="page-date">Payout</p>
+          <p class="page-date" id="earnings-show-name">All shows</p>
           <h1 class="page-title">Earnings</h1>
         </div>
       </header>
 
-      <div class="earnings-summary" id="earnings-summary">
-        <!-- totals -->
-      </div>
+      <div class="earnings-summary" id="earnings-summary"></div>
 
       <h2 class="section-header">By Person</h2>
       <div id="people-list" class="people-grid"></div>
@@ -51,6 +70,10 @@
     <button class="nav-btn active" data-target="tasks">
       <span class="nav-icon">⌂</span>
       <span class="nav-label">Tasks</span>
+    </button>
+    <button class="nav-btn" data-target="shows">
+      <span class="nav-icon">◆</span>
+      <span class="nav-label">Shows</span>
     </button>
     <button class="nav-btn" data-target="earnings">
       <span class="nav-icon">$</span>
@@ -77,7 +100,7 @@
     </div>
   </div>
 
-  <!-- ADD TASK MODAL (bottom sheet) -->
+  <!-- ADD TASK MODAL -->
   <div class="sheet-overlay hidden" id="add-sheet">
     <div class="sheet">
       <div class="sheet-handle"></div>
@@ -118,13 +141,38 @@
     </div>
   </div>
 
-  <!-- FIRST-RUN SEED PROMPT -->
-  <div class="seed-banner hidden" id="seed-banner">
-    <div>
-      <strong>No tasks yet.</strong>
-      <p>Load the default Pillow Show task list to get started.</p>
+  <!-- NEW SHOW MODAL -->
+  <div class="sheet-overlay hidden" id="show-sheet">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <h2 id="show-sheet-title">New Show</h2>
+        <p class="sheet-subtitle" id="show-sheet-subtitle">Name it and pick the dates</p>
+      </header>
+      <form id="show-form" class="add-form-grid">
+        <label>
+          <span>Show name</span>
+          <input id="show-name" type="text" required placeholder="e.g. Spring 2026 Pillows" />
+        </label>
+        <label>
+          <span>Start date</span>
+          <input id="show-start" type="date" required />
+        </label>
+        <label>
+          <span>End date</span>
+          <input id="show-end" type="date" />
+        </label>
+        <label class="checkbox-label" id="seed-checkbox-row">
+          <input type="checkbox" id="show-seed" checked />
+          <span>Load default Pillow Show task list</span>
+        </label>
+        <div class="sheet-actions">
+          <button type="button" class="btn-danger hidden" id="show-delete">Delete show</button>
+          <button type="button" class="btn-ghost" id="show-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="show-submit">Create Show</button>
+        </div>
+      </form>
     </div>
-    <button class="btn-primary" id="seed-btn">Load defaults</button>
   </div>
 
   <script type="module" src="app.js"></script>

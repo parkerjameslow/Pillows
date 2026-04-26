@@ -1,7 +1,5 @@
 # Setup — one-time Firebase configuration
 
-The app is built — it just needs to be connected to a Firebase project so multiple people share the same checklist in real time. Walk through these steps once.
-
 ## 1. Create a Firebase project
 
 1. Go to [console.firebase.google.com](https://console.firebase.google.com) and sign in with a Google account.
@@ -13,67 +11,66 @@ The app is built — it just needs to be connected to a Firebase project so mult
 
 1. On the project home page, click the **`</>`** (web) icon to add a web app.
 2. Give it a nickname like `pillows-web` → click **Register app**.
-3. Firebase will show you a `firebaseConfig` object that looks like:
+3. Copy the `firebaseConfig` object Firebase shows you.
+4. Open `app.js` and replace the placeholder `firebaseConfig` with the one you copied.
 
-   ```js
-   const firebaseConfig = {
-     apiKey: "AIza…",
-     authDomain: "pillows-xxxxx.firebaseapp.com",
-     projectId: "pillows-xxxxx",
-     storageBucket: "pillows-xxxxx.appspot.com",
-     messagingSenderId: "123456789",
-     appId: "1:123456789:web:abcdef",
-   };
-   ```
+## 3. Turn on Firestore
 
-4. **Copy that whole object.** Open `app.js` in this project, find the placeholder `firebaseConfig` near the top, and replace it with the one you copied.
+1. In the sidebar: **Build → Firestore Database**.
+2. Click **Create database** → pick a location (e.g., `nam5`) → **Production mode** → **Create**.
 
-## 3. Turn on Firestore (the shared database)
+## 4. Set the security rules
 
-1. In the Firebase console sidebar, click **Build → Firestore Database**.
-2. Click **Create database**.
-3. Choose **Start in production mode** → pick a location close to you (e.g., `us-central`) → **Enable**.
+In Firestore, click the **Rules** tab. Replace everything with:
 
-## 4. Set the security rules (so anyone can read and write)
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-Since this list is intentionally public with no login, allow open read/write. **Note:** anyone with the URL can edit or delete tasks — that's the tradeoff for "no password."
+    // Shows + their nested tasks (one task list per show)
+    match /shows/{showId} {
+      allow read, write: if true;
 
-1. In Firestore, click the **Rules** tab.
-2. Replace the rules with:
+      match /tasks/{taskId} {
+        allow read, write: if true;
+      }
+    }
 
-   ```
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /tasks/{taskId} {
-         allow read, write: if true;
-       }
-     }
-   }
-   ```
+    // Active-show pointer (which show is currently selected)
+    match /meta/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
+```
 
-3. Click **Publish**.
+Click **Publish**.
+
+> ⚠️ Anyone with the URL can read or write. That's intentional (no login). Real protection here is "obscurity" — only people with the link know it exists.
 
 ## 5. Try it locally
 
-Open `index.html` in a browser. You should see a banner that says **"No tasks yet"** with a **"Load defaults"** button. Click it — the full Pillow Show task list will populate. Open the page in a second tab; updates should sync instantly.
+```
+cd /Users/parkerlow/Pillows
+python3 -m http.server 8000
+```
 
-## 6. Put it on the internet (GitHub Pages)
+Open **http://localhost:8000** in a browser. You should see the app with a "No active show" message. Tap the **Shows** tab → **+** → name your first show → submit. The Pillow Show defaults will load and you can start checking tasks off.
 
-1. Push this folder to your GitHub repo.
-2. On GitHub, go to the repo → **Settings → Pages**.
-3. Under **Source**, choose **Deploy from a branch** → branch `main` → folder `/ (root)` → **Save**.
-4. After ~1 minute, GitHub will give you a URL like `https://parkerjameslow.github.io/Pillows/`.
-5. Open that URL on your phone. Bookmark it.
+## 6. Deploy to GitHub Pages (so your phone can reach it)
 
-That's it.
+1. Push `main` to GitHub: `git push`
+2. Open your repo's **Settings → Pages**
+3. **Source:** "Deploy from a branch", **Branch:** `main`, folder `/ (root)` → **Save**
+4. Wait ~1–2 minutes; refresh — your URL appears (`https://parkerjameslow.github.io/Pillows/`).
 
 ---
 
 ## How the app works
 
-- **Tasks tab** — All duties grouped by phase (Pre / Setup / During / Take Down). Each task shows pay and a Simple Treasures (ST) or Holy Cow (HC) tag where relevant.
-- **Tap a task** → A bottom sheet opens with everyone's name. Check who helped; the percentage splits evenly. You can override any % manually as long as the total stays at 100%.
-- **Tap a completed task** → unmark it (removes its earnings from the totals).
-- **Earnings tab** — Per-person totals, sorted highest first, plus an overall paid-out / remaining summary.
-- **+ button (top right)** — Add a new ad-hoc task at any time.
+- **Shows tab** — Create one show per boutique-show event. Each show has its own task list and earnings. Tap a show card to make it active.
+- **Tasks tab** — Shows the active show's checklist, grouped by Pre / Setup / During / Take Down. Tap a task → assignment sheet (pick who helped, override percentages, sum to 100% to confirm).
+- **Earnings tab** — Per-person totals for the active show only. Switch shows in the Shows tab to see different totals.
+- **+ on Tasks tab** — Add an ad-hoc task to the active show.
+- **+ on Shows tab** — Create a new show with optional default-task seeding.

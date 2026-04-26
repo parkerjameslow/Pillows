@@ -2,21 +2,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getFirestore,
   collection,
+  doc,
   addDoc,
   deleteDoc,
-  doc,
   updateDoc,
+  setDoc,
   onSnapshot,
   query,
   orderBy,
   serverTimestamp,
   writeBatch,
+  getDocs,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import { SEED_TASKS } from "./seed.js";
 
 // ─── Firebase config ─────────────────────────────────────────────
-// Replace these with the values from your Firebase console (see SETUP.md).
 const firebaseConfig = {
   apiKey: "AIzaSyCk2rQwoQIz_CSetxH_x5yXwX9ge-ofKtE",
   authDomain: "pillows-86314.firebaseapp.com",
@@ -28,7 +29,9 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const tasksRef = collection(db, "tasks");
+
+const showsRef     = collection(db, "shows");
+const activeRef    = doc(db, "meta", "active");
 
 // ─── Constants ───────────────────────────────────────────────────
 const PEOPLE = ["Addie", "Brooks", "Race", "Heidi", "Parker", "Finn"];
@@ -50,16 +53,30 @@ const PHASES = [
 ];
 
 // ─── State ───────────────────────────────────────────────────────
-let allTasks = [];      // { id, title, phase, boutique, pay, order, done, assignments, completedAt }
-let pendingAssign = null; // { taskId, selections: {name: pct} }
+let allShows         = [];
+let activeShowId     = null;
+let activeShowTasks  = [];
+let tasksUnsub       = null;
+let pendingAssign    = null;
 
 // ─── DOM refs ────────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
-const tasksContainer = $("tasks-container");
-const phaseStats     = $("phase-stats");
-const status         = $("connection-status");
-const seedBanner     = $("seed-banner");
-const todayDate      = $("today-date");
+const tasksContainer  = $("tasks-container");
+const phaseStats      = $("phase-stats");
+const status          = $("connection-status");
+const noShowEmpty     = $("no-show-empty");
+const noShowsEmpty    = $("no-shows-empty");
+const activeShowName  = $("active-show-name");
+const activeShowDate  = $("active-show-date");
+const earningsShowName = $("earnings-show-name");
+const addTaskBtn      = $("add-task-btn");
+
+const showsContainer  = $("shows-container");
+const addShowBtn      = $("add-show-btn");
+const showSheet       = $("show-sheet");
+const showForm        = $("show-form");
+const showCancel      = $("show-cancel");
+const showDelete      = $("show-delete");
 
 const assignSheet    = $("assign-sheet");
 const assignList     = $("assign-list");
@@ -78,37 +95,99 @@ const earningsSummary = $("earnings-summary");
 const peopleList      = $("people-list");
 
 // ─── Init ────────────────────────────────────────────────────────
-todayDate.textContent = new Date().toLocaleDateString(undefined, {
-  weekday: "long", month: "long", day: "numeric",
-});
-
 setupNav();
 setupSheets();
 setupAddTask();
-$("seed-btn").addEventListener("click", seedDefaults);
+setupNewShow();
 
-// ─── Live data subscription ──────────────────────────────────────
-const q = query(tasksRef, orderBy("order", "asc"));
+// Subscribe to shows list
 onSnapshot(
-  q,
+  query(showsRef, orderBy("startDate", "asc")),
   (snap) => {
-    allTasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    status.textContent = `Live · ${allTasks.length} task${allTasks.length === 1 ? "" : "s"}`;
-    seedBanner.classList.toggle("hidden", allTasks.length > 0);
-    renderTasks();
-    renderEarnings();
+    allShows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderShows();
+    renderActiveHeader();
   },
   (err) => {
-    status.textContent = `Error: ${err.message}`;
+    status.textContent = `Error loading shows: ${err.message}`;
     console.error(err);
   }
 );
 
+// Subscribe to "active show" pointer
+onSnapshot(
+  activeRef,
+  (snap) => {
+    const newId = snap.exists() ? snap.data().showId : null;
+    if (newId !== activeShowId) {
+      activeShowId = newId;
+      subscribeToActiveTasks();
+      renderActiveHeader();
+      renderShows();
+    }
+  },
+  (err) => console.error("active show err:", err)
+);
+
+// ─── Active show subscription ────────────────────────────────────
+function subscribeToActiveTasks() {
+  if (tasksUnsub) tasksUnsub();
+  tasksUnsub = null;
+
+  if (!activeShowId) {
+    activeShowTasks = [];
+    renderTasks();
+    renderEarnings();
+    status.textContent = "No active show";
+    return;
+  }
+
+  const tasksRef = collection(db, "shows", activeShowId, "tasks");
+  tasksUnsub = onSnapshot(
+    query(tasksRef, orderBy("order", "asc")),
+    (snap) => {
+      activeShowTasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      status.textContent = `Live · ${activeShowTasks.length} task${activeShowTasks.length === 1 ? "" : "s"}`;
+      renderTasks();
+      renderEarnings();
+      renderShows();
+    },
+    (err) => {
+      status.textContent = `Error: ${err.message}`;
+      console.error(err);
+    }
+  );
+}
+
+// ─── Header on Tasks screen ──────────────────────────────────────
+function renderActiveHeader() {
+  const show = allShows.find((s) => s.id === activeShowId);
+  if (!show) {
+    activeShowName.textContent = "No show selected";
+    activeShowDate.textContent = "Create one in the Shows tab";
+    earningsShowName.textContent = "No active show";
+    addTaskBtn.style.display = "none";
+    return;
+  }
+  activeShowName.textContent = show.name;
+  activeShowDate.textContent = formatDateRange(show.startDate, show.endDate);
+  earningsShowName.textContent = show.name;
+  addTaskBtn.style.display = "";
+}
+
 // ─── Tasks screen render ─────────────────────────────────────────
 function renderTasks() {
+  if (!activeShowId) {
+    noShowEmpty.classList.remove("hidden");
+    tasksContainer.innerHTML = "";
+    phaseStats.innerHTML = "";
+    return;
+  }
+  noShowEmpty.classList.add("hidden");
+
   // Phase stat tiles
   phaseStats.innerHTML = PHASES.map((p) => {
-    const tasks = allTasks.filter((t) => t.phase === p.id);
+    const tasks = activeShowTasks.filter((t) => t.phase === p.id);
     const done = tasks.filter((t) => t.done).length;
     return `
       <div class="stat-card">
@@ -118,10 +197,9 @@ function renderTasks() {
     `;
   }).join("");
 
-  // Phase sections
   tasksContainer.innerHTML = "";
   for (const p of PHASES) {
-    const tasks = allTasks.filter((t) => t.phase === p.id);
+    const tasks = activeShowTasks.filter((t) => t.phase === p.id);
     if (tasks.length === 0) continue;
 
     const section = document.createElement("div");
@@ -165,9 +243,8 @@ function renderTaskCard(t) {
 
   card.addEventListener("click", () => {
     if (t.done) {
-      // Re-open to edit, or unmark? For now: tap to unmark.
       if (confirm(`Unmark "${t.title}" as done? This will remove its earnings.`)) {
-        updateDoc(doc(db, "tasks", t.id), {
+        updateDoc(doc(db, "shows", activeShowId, "tasks", t.id), {
           done: false,
           assignments: {},
           completedAt: null,
@@ -201,7 +278,6 @@ function openAssignSheet(task) {
     assignList.appendChild(li);
   });
 
-  // Wire up listeners
   assignList.querySelectorAll('input[type="checkbox"]').forEach((chk) => {
     chk.addEventListener("change", () => {
       const name = chk.dataset.name;
@@ -265,8 +341,8 @@ assignSheet.addEventListener("click", (e) => {
 });
 
 sheetConfirm.addEventListener("click", async () => {
-  if (!pendingAssign) return;
-  await updateDoc(doc(db, "tasks", pendingAssign.taskId), {
+  if (!pendingAssign || !activeShowId) return;
+  await updateDoc(doc(db, "shows", activeShowId, "tasks", pendingAssign.taskId), {
     done: true,
     assignments: pendingAssign.selections,
     completedAt: serverTimestamp(),
@@ -279,19 +355,18 @@ function closeAssignSheet() {
   pendingAssign = null;
 }
 
-// ─── Earnings screen ─────────────────────────────────────────────
+// ─── Earnings (scoped to active show) ────────────────────────────
 function renderEarnings() {
   const totals = {};
   PEOPLE.forEach((p) => totals[p] = { earned: 0, tasks: 0 });
 
   let pool = 0, paidOut = 0;
-  for (const t of allTasks) {
+  for (const t of activeShowTasks) {
     pool += Number(t.pay) || 0;
     if (t.done && t.assignments) {
       for (const [name, pct] of Object.entries(t.assignments)) {
         if (totals[name]) {
-          const amount = (Number(t.pay) || 0) * (Number(pct) / 100);
-          totals[name].earned += amount;
+          totals[name].earned += (Number(t.pay) || 0) * (Number(pct) / 100);
           totals[name].tasks  += 1;
         }
       }
@@ -305,16 +380,13 @@ function renderEarnings() {
     <p class="sub">of $${pool.toFixed(0)} total · $${(pool - paidOut).toFixed(0)} remaining</p>
   `;
 
-  // Sorted highest earner first
   const sorted = PEOPLE.slice().sort((a, b) => totals[b].earned - totals[a].earned);
-
   peopleList.innerHTML = sorted.map((name) => {
     const { earned, tasks } = totals[name];
-    const initial = name[0];
     return `
       <div class="person-card">
         <div class="person-name">
-          <span class="avatar" style="background: ${PERSON_COLORS[name]}">${initial}</span>
+          <span class="avatar" style="background: ${PERSON_COLORS[name]}">${name[0]}</span>
           <div>
             ${name}
             <span class="person-tasks">${tasks} task${tasks === 1 ? "" : "s"}</span>
@@ -326,21 +398,165 @@ function renderEarnings() {
   }).join("");
 }
 
-// ─── Bottom nav ──────────────────────────────────────────────────
-function setupNav() {
-  document.querySelectorAll(".nav-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const target = btn.dataset.target;
-      document.querySelectorAll(".nav-btn").forEach((b) =>
-        b.classList.toggle("active", b === btn));
-      document.querySelectorAll(".screen").forEach((s) =>
-        s.classList.toggle("hidden", s.dataset.screen !== target));
-      window.scrollTo({ top: 0 });
-    });
+// ─── Shows screen render ─────────────────────────────────────────
+function renderShows() {
+  if (allShows.length === 0) {
+    noShowsEmpty.classList.remove("hidden");
+    showsContainer.innerHTML = "";
+    return;
+  }
+  noShowsEmpty.classList.add("hidden");
+
+  const today = todayISO();
+  const active = [], upcoming = [], past = [];
+  for (const s of allShows) {
+    if (s.id === activeShowId) {
+      active.push(s);
+    } else if ((s.endDate || s.startDate) >= today) {
+      upcoming.push(s);
+    } else {
+      past.push(s);
+    }
+  }
+  upcoming.sort((a, b) => a.startDate.localeCompare(b.startDate));
+  past.sort((a, b) => b.startDate.localeCompare(a.startDate));
+
+  showsContainer.innerHTML = "";
+  if (active.length) showsContainer.appendChild(showSection("Active", active, "active"));
+  if (upcoming.length) showsContainer.appendChild(showSection("Upcoming", upcoming, "upcoming"));
+  if (past.length) showsContainer.appendChild(showSection("Past", past, "past"));
+}
+
+function showSection(label, shows, statusClass) {
+  const section = document.createElement("div");
+  section.className = "section-block";
+  section.innerHTML = `<h2 class="section-header">${label}</h2>`;
+  for (const s of shows) {
+    section.appendChild(renderShowCard(s, statusClass));
+  }
+  return section;
+}
+
+function renderShowCard(s, statusClass) {
+  const card = document.createElement("div");
+  card.className = "show-card" + (s.id === activeShowId ? " active" : "");
+
+  // For the active show, show progress + payout from loaded tasks
+  let metaHtml = "";
+  if (s.id === activeShowId && activeShowTasks.length) {
+    const done = activeShowTasks.filter((t) => t.done).length;
+    const pool = activeShowTasks.reduce((sum, t) => sum + (Number(t.pay) || 0), 0);
+    const paid = activeShowTasks
+      .filter((t) => t.done)
+      .reduce((sum, t) => sum + (Number(t.pay) || 0), 0);
+    metaHtml = `
+      <div class="show-card-meta">
+        <span class="progress">${done}/${activeShowTasks.length} tasks</span>
+        <span class="payout">$${paid} / $${pool}</span>
+      </div>
+    `;
+  }
+
+  card.innerHTML = `
+    <div class="show-card-top">
+      <div>
+        <p class="show-card-name">${escapeHtml(s.name)}</p>
+        <p class="show-card-dates">${formatDateRange(s.startDate, s.endDate)}</p>
+      </div>
+      <span class="show-status ${statusClass}">${statusClass}</span>
+    </div>
+    ${metaHtml}
+  `;
+
+  card.addEventListener("click", async () => {
+    if (s.id === activeShowId) {
+      // Already active — switch to Tasks tab
+      switchTab("tasks");
+    } else {
+      await setDoc(activeRef, { showId: s.id });
+      switchTab("tasks");
+    }
+  });
+
+  return card;
+}
+
+// ─── New show creation ──────────────────────────────────────────
+function setupNewShow() {
+  addShowBtn.addEventListener("click", () => {
+    showForm.reset();
+    $("show-start").value = todayISO();
+    $("show-seed").checked = true;
+    showSheet.classList.remove("hidden");
+  });
+  showCancel.addEventListener("click", () => showSheet.classList.add("hidden"));
+
+  showSheet.addEventListener("click", (e) => {
+    if (e.target === showSheet) showSheet.classList.add("hidden");
+  });
+
+  showForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name      = $("show-name").value.trim();
+    const startDate = $("show-start").value;
+    const endDate   = $("show-end").value || startDate;
+    const seedIt    = $("show-seed").checked;
+    if (!name || !startDate) return;
+
+    const submitBtn = $("show-submit");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creating…";
+
+    try {
+      const showDoc = await addDoc(showsRef, {
+        name, startDate, endDate,
+        createdAt: serverTimestamp(),
+      });
+
+      if (seedIt) {
+        const batch = writeBatch(db);
+        SEED_TASKS.forEach((t, i) => {
+          const taskRef = doc(collection(db, "shows", showDoc.id, "tasks"));
+          batch.set(taskRef, {
+            ...t,
+            order: i,
+            done: false,
+            assignments: {},
+            completedAt: null,
+            createdAt: serverTimestamp(),
+          });
+        });
+        await batch.commit();
+      }
+
+      await setDoc(activeRef, { showId: showDoc.id });
+      showSheet.classList.add("hidden");
+      switchTab("tasks");
+    } catch (err) {
+      alert("Couldn't create show: " + err.message);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Create Show";
+    }
   });
 }
 
-// ─── Sheets (overlay close) ──────────────────────────────────────
+// ─── Bottom nav ──────────────────────────────────────────────────
+function setupNav() {
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.target));
+  });
+}
+
+function switchTab(target) {
+  document.querySelectorAll(".nav-btn").forEach((b) =>
+    b.classList.toggle("active", b.dataset.target === target));
+  document.querySelectorAll(".screen").forEach((s) =>
+    s.classList.toggle("hidden", s.dataset.screen !== target));
+  window.scrollTo({ top: 0 });
+}
+
+// ─── Sheets backdrop close ───────────────────────────────────────
 function setupSheets() {
   addSheet.addEventListener("click", (e) => {
     if (e.target === addSheet) addSheet.classList.add("hidden");
@@ -349,21 +565,26 @@ function setupSheets() {
 
 // ─── Add task ────────────────────────────────────────────────────
 function setupAddTask() {
-  addBtn.addEventListener("click", () => addSheet.classList.remove("hidden"));
+  addBtn.addEventListener("click", () => {
+    if (!activeShowId) {
+      alert("Pick or create a show first (Shows tab).");
+      return;
+    }
+    addSheet.classList.remove("hidden");
+  });
   addCancel.addEventListener("click", () => addSheet.classList.add("hidden"));
 
   addForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (!activeShowId) return;
     const title    = $("new-title").value.trim();
     const pay      = parseInt($("new-pay").value, 10) || 0;
     const phase    = $("new-phase").value;
     const boutique = $("new-boutique").value || null;
-
     if (!title) return;
 
-    const maxOrder = allTasks.reduce((m, t) => Math.max(m, t.order || 0), 0);
-
-    await addDoc(tasksRef, {
+    const maxOrder = activeShowTasks.reduce((m, t) => Math.max(m, t.order || 0), 0);
+    await addDoc(collection(db, "shows", activeShowId, "tasks"), {
       title, pay, phase, boutique,
       order: maxOrder + 1,
       done: false,
@@ -377,32 +598,29 @@ function setupAddTask() {
   });
 }
 
-// ─── Seed defaults ───────────────────────────────────────────────
-async function seedDefaults() {
-  $("seed-btn").disabled = true;
-  $("seed-btn").textContent = "Loading…";
-  try {
-    const batch = writeBatch(db);
-    SEED_TASKS.forEach((t, i) => {
-      const ref = doc(tasksRef);
-      batch.set(ref, {
-        ...t,
-        order: i,
-        done: false,
-        assignments: {},
-        completedAt: null,
-        createdAt: serverTimestamp(),
-      });
-    });
-    await batch.commit();
-  } catch (err) {
-    alert("Couldn't load defaults: " + err.message);
-    $("seed-btn").disabled = false;
-    $("seed-btn").textContent = "Load defaults";
-  }
+// ─── Helpers ─────────────────────────────────────────────────────
+function todayISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────
+function formatDateRange(start, end) {
+  if (!start) return "";
+  const s = new Date(start + "T00:00:00");
+  if (!end || end === start) {
+    return s.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+  }
+  const e = new Date(end + "T00:00:00");
+  if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) {
+    const month = s.toLocaleDateString(undefined, { month: "long" });
+    return `${month} ${s.getDate()}–${e.getDate()}, ${s.getFullYear()}`;
+  }
+  return `${s.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${e.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
