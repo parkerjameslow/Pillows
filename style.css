@@ -403,38 +403,81 @@ button {
 
 /* Earnings button on a show card */
 .show-earnings-btn {
-  margin-top: 0.4rem;
-  background: transparent;
-  border: 1px solid var(--border);
+  margin-top: 0.6rem;
+  background: linear-gradient(135deg, rgba(123, 107, 255, 0.18), rgba(91, 155, 255, 0.12));
+  border: 1px solid var(--accent);
   color: var(--text);
-  border-radius: 10px;
-  padding: 0.55rem 0.7rem;
-  font-size: 0.85rem;
-  font-weight: 600;
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 700;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.6rem;
   width: 100%;
+  text-align: left;
+  transition: filter 0.15s ease, transform 0.08s ease;
+  box-shadow: 0 4px 14px rgba(123, 107, 255, 0.15);
 }
-.show-earnings-btn:active { background: var(--card-2); }
+.show-earnings-btn:active {
+  transform: scale(0.985);
+  filter: brightness(1.08);
+}
+.show-earnings-btn .btn-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(123, 107, 255, 0.25);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  font-size: 1.05rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.show-earnings-btn .btn-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+.show-earnings-btn .btn-label-main {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+.show-earnings-btn .btn-label-sub {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+.show-earnings-btn .btn-chevron {
+  color: var(--accent);
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-left: 0.2rem;
+  flex-shrink: 0;
+}
 .show-earnings-btn .pending-pill {
-  background: rgba(244, 107, 107, 0.15);
+  background: rgba(244, 107, 107, 0.18);
   color: var(--coral);
   font-size: 0.72rem;
   font-weight: 700;
-  padding: 0.18rem 0.5rem;
+  padding: 0.22rem 0.55rem;
   border-radius: 999px;
   letter-spacing: 0.03em;
+  flex-shrink: 0;
 }
 .show-earnings-btn .all-paid-pill {
-  background: rgba(61, 214, 140, 0.15);
+  background: rgba(61, 214, 140, 0.18);
   color: var(--green);
   font-size: 0.72rem;
   font-weight: 700;
-  padding: 0.18rem 0.5rem;
+  padding: 0.22rem 0.55rem;
   border-radius: 999px;
   letter-spacing: 0.03em;
+  flex-shrink: 0;
 }
 
 /* ── Bottom nav ── */

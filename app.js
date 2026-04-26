@@ -530,10 +530,18 @@ function renderShowCard(s, statusClass) {
     const pill = pendingTotal > 0
       ? `<span class="pending-pill">$${pendingTotal.toFixed(0)} owed</span>`
       : `<span class="all-paid-pill">All paid ✓</span>`;
+    const sub = pendingTotal > 0
+      ? `Tap to mark people paid`
+      : `Everyone settled up`;
     earningsBtnHtml = `
       <button class="show-earnings-btn" type="button">
-        <span>Earnings & pay status</span>
+        <span class="btn-icon">$</span>
+        <span class="btn-label">
+          <span class="btn-label-main">Earnings & pay status</span>
+          <span class="btn-label-sub">${sub}</span>
+        </span>
         ${pill}
+        <span class="btn-chevron" aria-hidden="true">›</span>
       </button>
     `;
   }
