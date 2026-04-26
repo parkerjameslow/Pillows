@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0d1a" />
+  <title>Pillows</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- TASKS SCREEN -->
+    <section class="screen" data-screen="tasks">
+      <header class="page-header">
+        <div>
+          <p class="page-date" id="today-date"></p>
+          <h1 class="page-title">Pillow Show</h1>
+        </div>
+        <button class="icon-btn" id="add-task-btn" aria-label="Add task">＋</button>
+      </header>
+
+      <div class="stats-grid" id="phase-stats">
+        <!-- filled in by JS -->
+      </div>
+
+      <div id="tasks-container" class="sections"></div>
+
+      <p id="connection-status" class="status">Connecting…</p>
+    </section>
+
+    <!-- EARNINGS SCREEN -->
+    <section class="screen hidden" data-screen="earnings">
+      <header class="page-header">
+        <div>
+          <p class="page-date">Payout</p>
+          <h1 class="page-title">Earnings</h1>
+        </div>
+      </header>
+
+      <div class="earnings-summary" id="earnings-summary">
+        <!-- totals -->
+      </div>
+
+      <h2 class="section-header">By Person</h2>
+      <div id="people-list" class="people-grid"></div>
+    </section>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-target="tasks">
+      <span class="nav-icon">⌂</span>
+      <span class="nav-label">Tasks</span>
+    </button>
+    <button class="nav-btn" data-target="earnings">
+      <span class="nav-icon">$</span>
+      <span class="nav-label">Earnings</span>
+    </button>
+  </nav>
+
+  <!-- ASSIGNMENT MODAL (bottom sheet) -->
+  <div class="sheet-overlay hidden" id="assign-sheet">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <h2 id="sheet-title">Who helped?</h2>
+        <p id="sheet-subtitle" class="sheet-subtitle"></p>
+      </header>
+      <ul class="people-assign-list" id="assign-list"></ul>
+      <div class="sheet-footer">
+        <p class="sheet-total" id="sheet-total">Total: 0%</p>
+        <div class="sheet-actions">
+          <button class="btn-ghost" id="sheet-cancel">Cancel</button>
+          <button class="btn-primary" id="sheet-confirm">Mark Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD TASK MODAL (bottom sheet) -->
+  <div class="sheet-overlay hidden" id="add-sheet">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <h2>New Task</h2>
+      </header>
+      <form id="add-form" class="add-form-grid">
+        <label>
+          <span>Title</span>
+          <input id="new-title" type="text" required placeholder="e.g. Restock Bins Saturday" />
+        </label>
+        <label>
+          <span>Pay ($)</span>
+          <input id="new-pay" type="number" min="0" step="1" required placeholder="50" />
+        </label>
+        <label>
+          <span>Phase</span>
+          <select id="new-phase" required>
+            <option value="pre">Pre</option>
+            <option value="setup">Setup</option>
+            <option value="during">During</option>
+            <option value="takedown">Take Down</option>
+          </select>
+        </label>
+        <label>
+          <span>Boutique</span>
+          <select id="new-boutique">
+            <option value="">Both / N/A</option>
+            <option value="ST">Simple Treasures</option>
+            <option value="HC">Holy Cow</option>
+          </select>
+        </label>
+        <div class="sheet-actions">
+          <button type="button" class="btn-ghost" id="add-cancel">Cancel</button>
+          <button type="submit" class="btn-primary">Add Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- FIRST-RUN SEED PROMPT -->
+  <div class="seed-banner hidden" id="seed-banner">
+    <div>
+      <strong>No tasks yet.</strong>
+      <p>Load the default Pillow Show task list to get started.</p>
+    </div>
+    <button class="btn-primary" id="seed-btn">Load defaults</button>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
